@@ -24,6 +24,86 @@ test.describe('Game Listing and Navigation', () => {
     });
   });
 
+  test('should filter games by category and publisher combination', async ({ page }) => {
+    await test.step('Navigate to homepage and open filters', async () => {
+      await page.goto('/');
+      await expect(page.getByTestId('game-filters')).toBeVisible();
+    });
+
+    await test.step('Select a single category and publisher', async () => {
+      await page.getByLabel('Filter games by category').selectOption({ label: 'Strategy' });
+      await page.getByLabel('Filter games by publisher').selectOption({ label: 'CodeForge Studios' });
+      await page.getByRole('button', { name: 'Apply filters' }).click();
+    });
+
+    await test.step('Verify the filtered result matches the chosen combination', async () => {
+      await expect(page).toHaveURL(/\?.*category=.*publisher=.*/);
+      await expect(page.getByRole('link', { name: /DevOps Dominion Strategy/ })).toHaveCount(1);
+      await expect(page.getByText('1 game filtered')).toHaveText('1 game filtered');
+    });
+  });
+
+  test('should show games matching multiple selected categories', async ({ page }) => {
+    await test.step('Navigate to the homepage and select multiple categories', async () => {
+      await page.goto('/');
+      await page.getByLabel('Filter games by category').selectOption([
+        { label: 'Strategy' },
+        { label: 'Puzzle' },
+      ]);
+    });
+
+    await test.step('Verify games from either selected category are included', async () => {
+      await expect(page).toHaveURL(/\?category=\d+&category=\d+/);
+      await expect(page.getByRole('link', { name: /DevOps Dominion Strategy/ })).toHaveCount(1);
+      await expect(page.getByRole('link', { name: /Code Puzzle Chronicles Puzzle/ })).toHaveCount(1);
+      await expect(page.getByText('8 games filtered')).toHaveText('8 games filtered');
+    });
+  });
+
+  test('should filter games by publisher without a category filter', async ({ page }) => {
+    await test.step('Select a publisher without selecting a category', async () => {
+      await page.goto('/');
+      await page.getByLabel('Filter games by publisher').selectOption({ label: 'CodeForge Studios' });
+    });
+
+    await test.step('Verify only games from that publisher are shown', async () => {
+      await expect(page).toHaveURL(/\?publisher=\d+/);
+      await expect(page.getByRole('link', { name: /DevOps Dominion Strategy/ })).toHaveCount(1);
+      await expect(page.getByRole('link', { name: /Binary Frontier/ })).toHaveCount(0);
+      await expect(page.getByText('6 games filtered')).toHaveText('6 games filtered');
+    });
+  });
+
+  test('filter controls have accessible labels, test IDs, and keyboard focus states', async ({ page }) => {
+    await page.goto('/');
+
+    const categoryFilter = page.getByLabel('Filter games by category');
+    const publisherFilter = page.getByLabel('Filter games by publisher');
+    await expect(categoryFilter).toHaveCount(1);
+    await expect(publisherFilter).toHaveCount(1);
+    await expect(page.getByTestId('category-filter')).toHaveCount(1);
+    await expect(page.getByTestId('publisher-filter')).toHaveCount(1);
+    await expect(page.getByTestId('apply-filters-button')).toHaveCount(1);
+    await expect(page.getByTestId('clear-filters-link')).toHaveCount(1);
+
+    await test.step('Tab through the filter controls and verify visible focus styling', async () => {
+      await categoryFilter.focus();
+      await expect(categoryFilter).toBeFocused();
+      const categoryFocusRing = await categoryFilter.evaluate((element) => {
+        const styles = window.getComputedStyle(element);
+        return styles.boxShadow !== 'none' || styles.outlineWidth !== '0px';
+      });
+      expect(categoryFocusRing).toBeTruthy();
+
+      await page.keyboard.press('Tab');
+      await expect(publisherFilter).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Apply filters' })).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('link', { name: 'Clear filters' })).toBeFocused();
+    });
+  });
+
   test('should navigate to correct game details page when clicking on a game', async ({ page }) => {
     let gameId: string | null;
     let gameTitle: string | null;
